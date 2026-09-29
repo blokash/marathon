@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marathon Trainer</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Marathon">
+<meta name="theme-color" content="#E8EEF3">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  :root {
+    --ink: #16324F; --muted: #6B7B8C; --line: #E3E8EE; --bg: #E8EEF3; --red: #C2272D;
+    --field: #C6D1DC; --sub: #4A5B6C;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%; overscroll-behavior-y: none;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  input { font: inherit; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--ink); }
+
+  #main {
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom));
+    max-width: 640px; margin: 0 auto;
+  }
+  h1 { font-size: 24px; font-weight: 700; margin: 0; }
+  h2 { font-size: 17px; font-weight: 700; margin: 18px 0 8px; }
+  .body { font-size: 15px; line-height: 21px; }
+  .muted { font-size: 14px; color: var(--muted); }
+  .card { background: #fff; border-radius: 10px; padding: 6px 12px; }
+  .divider { border-bottom: 1px solid var(--line); }
+
+  /* bib */
+  .bib { position: relative; background: #fff; border-radius: 6px; padding: 22px 20px 18px; }
+  .pin { position: absolute; width: 10px; height: 10px; border-radius: 5px; background: var(--bg); border: 1.5px solid #B5C2CF; }
+  .bibTop { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px solid var(--red); padding-bottom: 6px; }
+  .bibTitle { font-weight: 700; font-size: 15px; }
+  .bibName { font-size: 14px; color: var(--muted); }
+  .bibNumber { font-size: 104px; text-align: center; letter-spacing: -2px; margin-top: 6px; line-height: 1.1; }
+  .bibSub { text-align: center; font-size: 15px; color: var(--muted); }
+
+  .weekHeader { display: flex; justify-content: space-between; align-items: baseline; margin-top: 24px; }
+  .phaseBar { border-left: 4px solid; border-radius: 4px; padding: 8px 12px; margin: 6px 0 14px; font-size: 14px; line-height: 20px; }
+  .weekNote { font-size: 14px; font-weight: 600; margin: 8px 0 4px; }
+
+  .dayRow { display: flex; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  .dayHead { width: 52px; padding-top: 12px; flex: none; }
+  .dayName { font-size: 15px; font-weight: 700; }
+  .dayDate { font-size: 11px; color: var(--muted); }
+  .dayItems { flex: 1; min-width: 0; }
+
+  .item { display: flex; align-items: center; padding: 10px 0; min-height: 48px; width: 100%; }
+  .item:active.tick { opacity: .6; }
+  .check { width: 26px; height: 26px; border-radius: 13px; border: 2px solid; display: flex; align-items: center; justify-content: center; margin-right: 10px; flex: none; color: #fff; font-size: 14px; font-weight: 700; }
+  .restDot { width: 26px; height: 26px; margin-right: 10px; flex: none; }
+  .itemText { flex: 1; min-width: 0; }
+  .itemLabel { font-size: 15px; font-weight: 500; }
+  .itemBig { font-size: 17px; font-weight: 700; }
+  .itemDone { text-decoration: line-through; color: #8795A3; }
+  .itemRest { color: var(--muted); font-weight: 400; }
+  .itemKind { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .itemDetail { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 17px; }
+  .km { font-size: 20px; margin-left: 8px; white-space: nowrap; }
+  .unit { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .swapBtn { margin: 0 0 8px 36px; border: 1.5px solid; border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 600; }
+  .skiLine { font-size: 14px; color: var(--sub); margin-top: 10px; }
+
+  .actualRow { display: flex; align-items: center; margin: 12px 0 6px; gap: 8px; }
+  .actualLabel { flex: 1; font-size: 14px; color: var(--sub); }
+  .actualInput { width: 76px; font-size: 18px; text-align: right; border: 1.5px solid var(--field); border-radius: 8px; padding: 6px 8px; background: #fff; }
+
+  .statsRow { display: flex; gap: 12px; margin-top: 16px; }
+  .stat { flex: 1; padding-top: 12px; padding-bottom: 12px; }
+  .statNum { font-size: 28px; }
+  .statLabel { font-size: 12px; color: var(--muted); }
+
+  .planCard { background: #fff; border-radius: 10px; border: 2px solid transparent; border-left-width: 6px; margin-bottom: 8px; }
+  .planHead { display: flex; align-items: center; padding: 12px; width: 100%; }
+  .planNum { font-size: 22px; width: 36px; flex: none; }
+  .planTitle { font-size: 15px; font-weight: 600; }
+  .planCount { font-size: 12px; font-weight: 600; color: #8795A3; }
+
+  .exHead { display: flex; align-items: center; padding: 14px 0; width: 100%; gap: 8px; }
+  .exName { flex: 1; font-size: 15px; font-weight: 600; }
+  .exDose { font-size: 14px; font-weight: 600; color: #2F6F9F; text-align: right; }
+
+  .paceRow { display: flex; align-items: center; padding: 12px 0; }
+  .paceVal { font-size: 22px; white-space: nowrap; }
+  .label { display: block; font-size: 15px; font-weight: 600; margin: 20px 0 6px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .input { width: 100%; background: #fff; border: 1.5px solid var(--field); border-radius: 8px; padding: 10px 12px; font-size: 17px; color: var(--ink); }
+  .segment { display: flex; background: #fff; border-radius: 8px; border: 1.5px solid var(--field); overflow: hidden; }
+  .segBtn { flex: 1; padding: 10px 0; text-align: center; font-size: 15px; font-weight: 600; }
+  .segOn { background: var(--ink); color: #fff; }
+  .predict { background: var(--ink); border-radius: 10px; padding: 16px; margin-top: 20px; color: #fff; }
+  .predictNum { font-size: 38px; color: #fff; }
+  .predictBtn { background: #fff; color: var(--ink); font-weight: 600; border-radius: 8px; padding: 8px 12px; margin-top: 6px; }
+  .clearBtn { border: 1.5px solid var(--red); color: var(--red); font-weight: 600; border-radius: 8px; padding: 8px 12px; margin-top: 32px; }
+
+  .tabBar {
+    position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: #fff;
+    border-top: 1px solid var(--field); padding-bottom: env(safe-area-inset-bottom); z-index: 10;
+  }
+  .tab { flex: 1; text-align: center; padding: 14px 0; border-top: 3px solid transparent; font-size: 14px; font-weight: 500; color: var(--sub); }
+  .tabOn { border-top-color: var(--red); color: var(--red); font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="main"></div>
+<nav class="tabBar" id="tabs"></nav>
+<script src="plan.js"></script>
+<script>
+const KEY = 'london-marathon-2027-v2';
+const DEFAULTS = { raceDay: 'sun', goal: '4:15:00', half: '', done: {}, actual: {}, sunday: {} };
+const MUTED = '#6B7B8C';
+const DAY_MS = 86400000;
+
+// ---------- state ----------
+let st = { ...DEFAULTS };
+try { const v = localStorage.getItem(KEY); if (v) st = { ...DEFAULTS, ...JSON.parse(v) }; } catch (e) {}
+let tab = 'week';
+let planOpen;           // week index open on Plan tab
+let exOpen = null;      // strength exercise open
+let confirmClear = false;
+
+function update(patch, rerender = true) {
+  st = { ...st, ...patch };
+  try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {}
+  if (rerender) render();
+}
+
+// ---------- helpers ----------
+const startDate = new Date(PLAN_START.y, PLAN_START.m, PLAN_START.d);
+const weekStart = (i) => new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i * 7);
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const shortDate = (d) => d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function toSec(s) {
+  if (!s) return null;
+  const p = s.trim().split(':').map(Number);
+  if (p.some((n) => Number.isNaN(n))) return null;
+  if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
+  if (p.length === 2) return p[0] * 60 + p[1];
+  return null;
+}
+function fmt(sec, hours = false) {
+  const t = Math.round(sec);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = String(t % 60).padStart(2, '0');
+  return hours ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${Math.floor(t / 60)}:${s}`;
+}
+
+function ctx() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const raceDate = new Date(2027, 3, st.raceDay === 'sun' ? 25 : 24);
+  const daysToGo = Math.max(0, Math.round((raceDate - today) / DAY_MS));
+  const rawIdx = Math.floor(Math.round((today - startDate) / DAY_MS) / 7);
+  const curIdx = Math.min(WEEKS.length - 1, Math.max(0, rawIdx));
+  const todayIdx = rawIdx === curIdx ? (today.getDay() + 6) % 7 : -1;
+  const goalSec = toSec(st.goal) || toSec('4:15:00');
+  return { raceDate, daysToGo, curIdx, todayIdx, goalSec, mp: goalSec / 42.195 };
+}
+
+// ---------- pieces ----------
+function itemHtml(wi, it, color) {
+  const tickable = it.kind !== 'Rest';
+  const done = !!st.done[`${wi}-${it.id}`];
+  const labelCls = ['itemLabel', it.big && 'itemBig', done && 'itemDone', !tickable && 'itemRest'].filter(Boolean).join(' ');
+  const box = tickable
+    ? `<span class="check" style="border-color:${color};background:${done ? color : 'transparent'}">${done ? '✓' : ''}</span>`
+    : '<span class="restDot"></span>';
+  const inner = `${box}<span class="itemText"><div class="${labelCls}">${esc(it.label)}</div><div class="itemKind">${esc(it.kind)}</div>${it.detail ? `<div class="itemDetail">${esc(it.detail)}</div>` : ''}</span>${it.km ? `<span class="km num">${it.km}<span class="unit"> km</span></span>` : ''}`;
+  let h = tickable
+    ? `<button class="item tick" role="checkbox" aria-checked="${done}" data-act="toggle" data-w="${wi}" data-id="${it.id}">${inner}</button>`
+    : `<div class="item">${inner}</div>`;
+  if (it.swappable) {
+    h += `<button class="swapBtn" style="border-color:${color};color:${color}" data-act="swap" data-w="${wi}">${st.sunday[wi] ? 'Move long run back to Saturday' : 'Move long run to Sunday'}</button>`;
+  }
+  return h;
+}
+
+function weekDaysHtml(wi, todayIdx) {
+  const w = WEEKS[wi];
+  const ph = PHASES[w.phase];
+  const days = buildDays(w, { longOnSunday: !!st.sunday[wi], raceOnSunday: st.raceDay === 'sun' });
+  const ws = weekStart(wi);
+  let h = w.note ? `<div class="weekNote" style="color:${ph.color}">${esc(w.note)}</div>` : '';
+  days.forEach((items, d) => {
+    const isToday = todayIdx === d;
+    h += `<div class="dayRow" ${isToday ? `style="background:${ph.tint};border-radius:8px"` : ''}>
+      <div class="dayHead"><div class="dayName" ${isToday ? `style="color:${ph.color}"` : ''}>${DAY_NAMES[d]}</div><div class="dayDate">${shortDate(addDays(ws, d))}</div></div>
+      <div class="dayItems">${items.length === 0 ? '<div class="muted" style="padding:14px 0">Rest</div>' : items.map((it) => itemHtml(wi, it, ph.color)).join('')}</div>
+    </div>`;
+  });
+  if (w.ski) h += `<div class="skiLine">Skiing this week: ${esc(w.ski)}</div>`;
+  h += `<div class="actualRow">
+    <label class="actualLabel" for="act-${wi}">Actual km this week <span style="color:${MUTED}">(planned ${plannedKm(w)})</span></label>
+    <input id="act-${wi}" class="actualInput num" inputmode="decimal" placeholder="0" value="${esc(st.actual[wi] ?? '')}" data-act="actual" data-w="${wi}" aria-label="Actual km for week ${wi + 1}">
+  </div>`;
+  return h;
+}
+
+// ---------- screens ----------
+function thisWeek(c) {
+  const w = WEEKS[c.curIdx];
+  const ph = PHASES[w.phase];
+  const logged = Object.values(st.actual).reduce((s, v) => s + (Number(v) || 0), 0);
+  const pins = ['top:8px;left:8px', 'top:8px;right:8px', 'bottom:8px;left:8px', 'bottom:8px;right:8px'].map((p) => `<span class="pin" style="${p}"></span>`).join('');
+  return `
+    <div class="bib">${pins}
+      <div class="bibTop"><span class="bibTitle">London Marathon 2027</span><span class="bibName">Brent</span></div>
+      <div class="bibNumber num">${c.daysToGo}</div>
+      <div class="bibSub">${c.daysToGo === 0 ? "It's race day. Go get it." : `days to go · ${c.raceDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`}</div>
+    </div>
+    <div class="weekHeader"><h1>Week ${c.curIdx + 1}</h1><span class="muted">from ${shortDate(weekStart(c.curIdx))}</span></div>
+    <div class="phaseBar" style="background:${ph.tint};border-left-color:${ph.color}"><b style="color:${ph.color}">${ph.name}. </b>${esc(ph.note)}</div>
+    <div class="card">${weekDaysHtml(c.curIdx, c.todayIdx)}</div>
+    <div class="statsRow">
+      <div class="card stat"><div class="statNum num" id="logged">${Math.round(logged)}<span class="unit"> km</span></div><div class="statLabel">logged so far</div></div>
+      <div class="card stat"><div class="statNum num">${fmt(c.mp)}<span class="unit"> /km</span></div><div class="statLabel">marathon pace for ${fmt(c.goalSec, true)}</div></div>
+    </div>`;
+}
+
+function plan(c) {
+  if (planOpen === undefined) planOpen = c.curIdx;
+  let h = `<h1>All 30 weeks</h1><div class="muted" style="margin:4px 0 8px">Tap a week to see each day and log your km.</div>`;
+  WEEKS.forEach((w, i) => {
+    const ph = PHASES[w.phase];
+    if (i === 0 || WEEKS[i - 1].phase !== w.phase) h += `<h2 style="color:${ph.color}">${ph.name}</h2>`;
+    const items = buildDays(w, { longOnSunday: !!st.sunday[i], raceOnSunday: st.raceDay === 'sun' }).flat().filter((it) => it.kind !== 'Rest');
+    const dc = items.filter((it) => st.done[`${i}-${it.id}`]).length;
+    const cur = i === c.curIdx;
+    h += `<div class="planCard" id="wk-${i}" style="border-left-color:${ph.color};${cur ? `border-color:${ph.color};border-left-color:${ph.color}` : ''}">
+      <button class="planHead" data-act="open" data-w="${i}" aria-expanded="${planOpen === i}">
+        <span class="planNum num">${i + 1}</span>
+        <span style="flex:1"><div class="planTitle">${esc(w.long[0])}</div><div class="itemKind">${shortDate(weekStart(i))} · ${plannedKm(w)} km planned${cur ? ' · this week' : ''}</div></span>
+        <span class="planCount" ${dc === items.length ? `style="color:${ph.color}"` : ''}>${dc}/${items.length}</span>
+      </button>
+      ${planOpen === i ? `<div style="padding:0 8px 12px">${weekDaysHtml(i, -1)}</div>` : ''}
+    </div>`;
+  });
+  return h;
+}
+
+function strength(c) {
+  const phase = WEEKS[c.curIdx].phase;
+  const thisW = phase === 'race' ? 'No strength this week' : phase === 'taper' ? 'Session A, light' : phase === 'ski' ? 'A (Tue) and B (Thu), 15–20 min each' : 'A (Mon) and B (Thu)';
+  let h = `<h1>Strength</h1><div class="body" style="margin-top:4px">This week: <b>${thisW}</b></div>`;
+  ['A', 'B'].forEach((k) => {
+    const list = STRENGTH[k].items;
+    h += `<div style="margin-top:20px"><h2>${esc(STRENGTH[k].title)}</h2><div class="card">`;
+    list.forEach(([name, dose, how, prog], j) => {
+      const id = k + j;
+      const open = exOpen === id;
+      h += `<div class="${j < list.length - 1 ? 'divider' : ''}">
+        <button class="exHead" data-act="ex" data-id="${id}" aria-expanded="${open}"><span class="exName">${esc(name)}</span><span class="exDose">${esc(dose)}</span></button>
+        ${open ? `<div style="padding-bottom:12px"><div class="body">${esc(how)}</div><div class="muted" style="margin-top:6px">${esc(prog)}</div></div>` : ''}
+      </div>`;
+    });
+    h += `</div></div>`;
+  });
+  h += `<div class="muted" style="margin-top:16px;line-height:20px">${esc(STRENGTH.notes)}</div>`;
+  return h;
+}
+
+function paces(c) {
+  const mp = c.mp;
+  const halfSec = toSec(st.half);
+  const rows = [
+    ['Easy', `${fmt(mp + 50)}–${fmt(mp + 80)}`, 'Most runs. You can hold a conversation.'],
+    ['Marathon pace', fmt(mp), 'MP segments and race day.'],
+    ['Tempo', fmt(mp - 25), 'Comfortably hard. A few words at a time.'],
+    ['Intervals', fmt(mp - 45), '1 km reps, 2 min jog between.'],
+  ];
+  return `
+    <h1>Paces and race</h1>
+    <div class="card" style="margin-top:12px">${rows.map(([n, v, d], j) => `
+      <div class="paceRow ${j < rows.length - 1 ? 'divider' : ''}">
+        <div style="flex:1"><div class="exName">${n}</div><div class="itemKind">${d}</div></div>
+        <div class="paceVal num">${v}<span class="unit"> /km</span></div>
+      </div>`).join('')}
+    </div>
+    <span class="label">Race day</span>
+    <div class="segment">${[['sat', 'Sat 24 Apr'], ['sun', 'Sun 25 Apr']].map(([k, l]) =>
+      `<button class="segBtn ${st.raceDay === k ? 'segOn' : ''}" data-act="race" data-id="${k}">${l}</button>`).join('')}
+    </div>
+    <div class="hint">Confirm the day with Sense. The countdown and race week adjust.</div>
+    <label class="label" for="goal">Goal time</label>
+    <input id="goal" class="input" inputmode="text" autocomplete="off" placeholder="4:15:00" value="${esc(st.goal)}" data-act="goal">
+    <div class="hint">Format h:mm:ss. Paces update as you type.</div>
+    <label class="label" for="half">Tune-up half result</label>
+    <input id="half" class="input" inputmode="text" autocomplete="off" placeholder="1:54:30" value="${esc(st.half)}" data-act="half">
+    <div class="hint">Enter after your mid-February half.</div>
+    ${halfSec ? `<div class="predict"><div style="opacity:.8">Predicted marathon from your half</div>
+      <div class="predictNum num">${fmt(halfSec * 2.1, true)}</div>
+      <button class="predictBtn" data-act="usehalf">Use as goal time</button></div>` : ''}
+    <button class="clearBtn" data-act="clear">${confirmClear ? 'Tap again to clear all ticks and km' : 'Clear progress'}</button>`;
+}
+
+// ---------- render ----------
+const TABS = [['week', 'This week'], ['plan', 'Plan'], ['strength', 'Strength'], ['paces', 'Paces']];
+const main = document.getElementById('main');
+
+function render() {
+  // keep focus + caret in a text field across re-renders
+  const a = document.activeElement;
+  const focusId = a && a.tagName === 'INPUT' ? a.id : null;
+  const caret = focusId ? a.selectionStart : null;
+
+  const c = ctx();
+  main.innerHTML = tab === 'week' ? thisWeek(c) : tab === 'plan' ? plan(c) : tab === 'strength' ? strength(c) : paces(c);
+  document.getElementById('tabs').innerHTML = TABS.map(([k, l]) =>
+    `<button class="tab ${tab === k ? 'tabOn' : ''}" role="tab" aria-selected="${tab === k}" data-tab="${k}">${l}</button>`).join('');
+
+  if (focusId) {
+    const el = document.getElementById(focusId);
+    if (el) { el.focus(); try { el.setSelectionRange(caret, caret); } catch (e) {} }
+  }
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  tab = b.dataset.tab; confirmClear = false;
+  render(); window.scrollTo(0, 0);
+});
+
+main.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const wi = Number(b.dataset.w);
+  const act = b.dataset.act;
+  if (act === 'toggle') { const k = `${wi}-${b.dataset.id}`; update({ done: { ...st.done, [k]: !st.done[k] } }); }
+  else if (act === 'swap') update({ sunday: { ...st.sunday, [wi]: !st.sunday[wi] } });
+  else if (act === 'open') { planOpen = planOpen === wi ? null : wi; render(); }
+  else if (act === 'ex') { exOpen = exOpen === b.dataset.id ? null : b.dataset.id; render(); }
+  else if (act === 'race') update({ raceDay: b.dataset.id });
+  else if (act === 'usehalf') update({ goal: fmt(toSec(st.half) * 2.1, true) });
+  else if (act === 'clear') {
+    if (confirmClear) { confirmClear = false; update({ done: {}, actual: {}, sunday: {} }); }
+    else { confirmClear = true; render(); }
+  }
+});
+
+main.addEventListener('input', (e) => {
+  const el = e.target;
+  const act = el.dataset.act;
+  if (act === 'actual') {
+    const v = el.value.replace(/[^0-9.]/g, '');
+    if (v !== el.value) el.value = v;
+    update({ actual: { ...st.actual, [el.dataset.w]: v } }, false);
+    const lg = document.getElementById('logged');
+    if (lg) lg.innerHTML = `${Math.round(Object.values(st.actual).reduce((s, x) => s + (Number(x) || 0), 0))}<span class="unit"> km</span>`;
+  } else if (act === 'goal' || act === 'half') {
+    update({ [act]: el.value });
+  }
+});
+
+// Refresh "today" when the app comes back to the foreground on a new day
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.activeElement?.matches('input')) render(); });
+
+render();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
