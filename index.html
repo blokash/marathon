@@ -74,8 +74,14 @@
   .swapBtn { margin: 0 0 8px 36px; border: 1.5px solid; border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 600; }
   .skiLine { font-size: 14px; color: var(--sub); margin-top: 10px; }
 
+  .weekTotal { margin-top: 14px; }
+  .totalTop { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .totalKm { font-size: 26px; }
+  .bar { height: 8px; background: var(--line); border-radius: 4px; margin-top: 6px; overflow: hidden; }
+  .barFill { height: 100%; border-radius: 4px; transition: width .2s; }
+  .weekBtn { width: 100%; text-align: center; margin-top: 12px; border: 1.5px solid; border-radius: 8px; padding: 10px; font-size: 15px; font-weight: 600; }
   .actualRow { display: flex; align-items: center; margin: 12px 0 6px; gap: 8px; }
-  .actualLabel { flex: 1; font-size: 14px; color: var(--sub); }
+  .actualLabel { flex: 1; font-size: 13px; color: var(--sub); line-height: 18px; }
   .actualInput { width: 76px; font-size: 18px; text-align: right; border: 1.5px solid var(--field); border-radius: 8px; padding: 6px 8px; background: #fff; }
 
   .statsRow { display: flex; gap: 12px; margin-top: 16px; }
@@ -172,6 +178,40 @@ function ctx() {
   return { raceDate, daysToGo, curIdx, todayIdx, goalSec, mp: goalSec / 42.195 };
 }
 
+// ---------- week totals ----------
+// Optional runs are written as a range ("Easy 5–6"); a ticked one counts the lower number.
+const optRange = (it) => (it.id === 'o' && it.label ? (/\d+(?:\.\d+)?(?:\s*[–-]\s*\d+(?:\.\d+)?)?/.exec(it.label) || [''])[0].replace(/\s/g, '') : '');
+const itemKm = (it) => it.km || (optRange(it) ? parseFloat(optRange(it)) : 0);
+const weekItems = (wi) =>
+  buildDays(WEEKS[wi], { longOnSunday: !!st.sunday[wi], raceOnSunday: st.raceDay === 'sun' }).flat().filter((it) => it.kind !== 'Rest');
+
+function weekStats(wi) {
+  const items = weekItems(wi);
+  const done = items.filter((it) => st.done[`${wi}-${it.id}`]);
+  const tickedKm = Math.round(done.reduce((s, it) => s + itemKm(it), 0) * 10) / 10;
+  const override = st.actual[wi];
+  const km = override !== undefined && override !== '' ? Number(override) || 0 : tickedKm;
+  return { items, doneCount: done.length, tickedKm, km };
+}
+const totalKm = () => WEEKS.reduce((s, _, i) => s + weekStats(i).km, 0);
+const fmtKm = (n) => String(Math.round(n * 10) / 10);
+
+function weekTotalHtml(wi, color) {
+  const w = WEEKS[wi];
+  const s = weekStats(wi);
+  const planned = plannedKm(w);
+  const pct = Math.min(100, Math.round((s.km / planned) * 100));
+  const all = s.doneCount === s.items.length;
+  return `<div class="weekTotal" id="total-${wi}">
+    <div class="totalTop">
+      <span><span class="totalKm num" id="tkm-${wi}">${fmtKm(s.km)}</span><span class="unit"> of ${planned} km</span></span>
+      <span class="muted">${s.doneCount} of ${s.items.length} workouts done</span>
+    </div>
+    <div class="bar"><div class="barFill" id="bar-${wi}" style="width:${pct}%;background:${color}"></div></div>
+    <button class="weekBtn" style="${all ? `background:${color};color:#fff;border-color:${color}` : `border-color:${color};color:${color}`}" data-act="all" data-w="${wi}">${all ? '✓ Week complete (tap to undo)' : 'Mark whole week complete'}</button>
+  </div>`;
+}
+
 // ---------- pieces ----------
 function itemHtml(wi, it, color) {
   const tickable = it.kind !== 'Rest';
@@ -180,7 +220,7 @@ function itemHtml(wi, it, color) {
   const box = tickable
     ? `<span class="check" style="border-color:${color};background:${done ? color : 'transparent'}">${done ? '✓' : ''}</span>`
     : '<span class="restDot"></span>';
-  const inner = `${box}<span class="itemText"><div class="${labelCls}">${esc(it.label)}</div><div class="itemKind">${esc(it.kind)}</div>${it.detail ? `<div class="itemDetail">${esc(it.detail)}</div>` : ''}</span>${it.km ? `<span class="km num">${it.km}<span class="unit"> km</span></span>` : ''}`;
+  const inner = `${box}<span class="itemText"><div class="${labelCls}">${esc(it.label)}</div><div class="itemKind">${esc(it.kind)}</div>${it.detail ? `<div class="itemDetail">${esc(it.detail)}</div>` : ''}</span>${it.km || optRange(it) ? `<span class="km num">${it.km || optRange(it)}<span class="unit"> km</span></span>` : ''}`;
   let h = tickable
     ? `<button class="item tick" role="checkbox" aria-checked="${done}" data-act="toggle" data-w="${wi}" data-id="${it.id}">${inner}</button>`
     : `<div class="item">${inner}</div>`;
@@ -204,9 +244,10 @@ function weekDaysHtml(wi, todayIdx) {
     </div>`;
   });
   if (w.ski) h += `<div class="skiLine">Skiing this week: ${esc(w.ski)}</div>`;
+  h += weekTotalHtml(wi, ph.color);
   h += `<div class="actualRow">
-    <label class="actualLabel" for="act-${wi}">Actual km this week <span style="color:${MUTED}">(planned ${plannedKm(w)})</span></label>
-    <input id="act-${wi}" class="actualInput num" inputmode="decimal" placeholder="0" value="${esc(st.actual[wi] ?? '')}" data-act="actual" data-w="${wi}" aria-label="Actual km for week ${wi + 1}">
+    <label class="actualLabel" for="act-${wi}">Ran a different distance? Enter the week's real km <span style="color:${MUTED}">(leave blank to use your ticks)</span></label>
+    <input id="act-${wi}" class="actualInput num" inputmode="decimal" placeholder="${fmtKm(weekStats(wi).tickedKm)}" value="${esc(st.actual[wi] ?? '')}" data-act="actual" data-w="${wi}" aria-label="Actual km for week ${wi + 1}">
   </div>`;
   return h;
 }
@@ -215,7 +256,7 @@ function weekDaysHtml(wi, todayIdx) {
 function thisWeek(c) {
   const w = WEEKS[c.curIdx];
   const ph = PHASES[w.phase];
-  const logged = Object.values(st.actual).reduce((s, v) => s + (Number(v) || 0), 0);
+  const logged = totalKm();
   const pins = ['top:8px;left:8px', 'top:8px;right:8px', 'bottom:8px;left:8px', 'bottom:8px;right:8px'].map((p) => `<span class="pin" style="${p}"></span>`).join('');
   return `
     <div class="bib">${pins}
@@ -238,14 +279,13 @@ function plan(c) {
   WEEKS.forEach((w, i) => {
     const ph = PHASES[w.phase];
     if (i === 0 || WEEKS[i - 1].phase !== w.phase) h += `<h2 style="color:${ph.color}">${ph.name}</h2>`;
-    const items = buildDays(w, { longOnSunday: !!st.sunday[i], raceOnSunday: st.raceDay === 'sun' }).flat().filter((it) => it.kind !== 'Rest');
-    const dc = items.filter((it) => st.done[`${i}-${it.id}`]).length;
+    const s = weekStats(i);
     const cur = i === c.curIdx;
     h += `<div class="planCard" id="wk-${i}" style="border-left-color:${ph.color};${cur ? `border-color:${ph.color};border-left-color:${ph.color}` : ''}">
       <button class="planHead" data-act="open" data-w="${i}" aria-expanded="${planOpen === i}">
         <span class="planNum num">${i + 1}</span>
-        <span style="flex:1"><div class="planTitle">${esc(w.long[0])}</div><div class="itemKind">${shortDate(weekStart(i))} · ${plannedKm(w)} km planned${cur ? ' · this week' : ''}</div></span>
-        <span class="planCount" ${dc === items.length ? `style="color:${ph.color}"` : ''}>${dc}/${items.length}</span>
+        <span style="flex:1"><div class="planTitle">${esc(w.long[0])}</div><div class="itemKind">${shortDate(weekStart(i))}${cur ? ' · this week' : ''}</div></span>
+        <span class="planCount" style="text-align:right;${s.doneCount === s.items.length ? `color:${ph.color}` : ''}"><span class="num" style="font-size:15px;color:inherit">${fmtKm(s.km)}</span> / ${plannedKm(w)} km<br>${s.doneCount === s.items.length ? '✓ done' : `${s.doneCount}/${s.items.length} done`}</span>
       </button>
       ${planOpen === i ? `<div style="padding:0 8px 12px">${weekDaysHtml(i, -1)}</div>` : ''}
     </div>`;
@@ -342,6 +382,13 @@ main.addEventListener('click', (e) => {
   const wi = Number(b.dataset.w);
   const act = b.dataset.act;
   if (act === 'toggle') { const k = `${wi}-${b.dataset.id}`; update({ done: { ...st.done, [k]: !st.done[k] } }); }
+  else if (act === 'all') {
+    const items = weekItems(wi);
+    const allDone = items.every((it) => st.done[`${wi}-${it.id}`]);
+    const done = { ...st.done };
+    items.forEach((it) => { done[`${wi}-${it.id}`] = !allDone; });
+    update({ done });
+  }
   else if (act === 'swap') update({ sunday: { ...st.sunday, [wi]: !st.sunday[wi] } });
   else if (act === 'open') { planOpen = planOpen === wi ? null : wi; render(); }
   else if (act === 'ex') { exOpen = exOpen === b.dataset.id ? null : b.dataset.id; render(); }
@@ -359,9 +406,16 @@ main.addEventListener('input', (e) => {
   if (act === 'actual') {
     const v = el.value.replace(/[^0-9.]/g, '');
     if (v !== el.value) el.value = v;
-    update({ actual: { ...st.actual, [el.dataset.w]: v } }, false);
+    const wi = Number(el.dataset.w);
+    update({ actual: { ...st.actual, [wi]: v } }, false);
+    // update totals in place so the keyboard stays open
+    const s = weekStats(wi);
+    const tk = document.getElementById(`tkm-${wi}`);
+    if (tk) tk.textContent = fmtKm(s.km);
+    const bar = document.getElementById(`bar-${wi}`);
+    if (bar) bar.style.width = `${Math.min(100, Math.round((s.km / plannedKm(WEEKS[wi])) * 100))}%`;
     const lg = document.getElementById('logged');
-    if (lg) lg.innerHTML = `${Math.round(Object.values(st.actual).reduce((s, x) => s + (Number(x) || 0), 0))}<span class="unit"> km</span>`;
+    if (lg) lg.innerHTML = `${Math.round(totalKm())}<span class="unit"> km</span>`;
   } else if (act === 'goal' || act === 'half') {
     update({ [act]: el.value });
   }
