@@ -96,6 +96,14 @@
   .planCount { font-size: 12px; font-weight: 600; color: #8795A3; }
 
   .exHead { display: flex; align-items: center; padding: 14px 0; width: 100%; gap: 8px; }
+  .exCard { margin-top: 14px; padding: 4px 12px 14px; }
+  .exCard .exHead { padding: 10px 0; }
+  .video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: #000; position: relative; }
+  .video iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .thumb { background-size: cover; background-position: center; }
+  .playBtn { position: absolute; left: 50%; top: 50%; width: 64px; height: 44px; margin: -22px 0 0 -32px; border-radius: 12px; background: rgba(194, 39, 45, .92); }
+  .playBtn::after { content: ''; position: absolute; left: 26px; top: 12px; border-style: solid; border-width: 10px 0 10px 17px; border-color: transparent transparent transparent #fff; }
+  .ytLink { display: inline-block; margin-top: 8px; font-size: 13px; color: #2F6F9F; text-decoration: none; font-weight: 600; }
   .exName { flex: 1; font-size: 15px; font-weight: 600; }
   .exDose { font-size: 14px; font-weight: 600; color: #2F6F9F; text-align: right; }
 
@@ -116,7 +124,7 @@
     position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: #fff;
     border-top: 1px solid var(--field); padding-bottom: env(safe-area-inset-bottom); z-index: 10;
   }
-  .tab { flex: 1; text-align: center; padding: 14px 0; border-top: 3px solid transparent; font-size: 14px; font-weight: 500; color: var(--sub); }
+  .tab { flex: 1; text-align: center; padding: 12px 2px 14px; border-top: 3px solid transparent; font-size: 13px; font-weight: 500; color: var(--sub); line-height: 16px; }
   .tabOn { border-top-color: var(--red); color: var(--red); font-weight: 700; }
 </style>
 </head>
@@ -135,7 +143,7 @@ let st = { ...DEFAULTS };
 try { const v = localStorage.getItem(KEY); if (v) st = { ...DEFAULTS, ...JSON.parse(v) }; } catch (e) {}
 let tab = 'week';
 let planOpen;           // week index open on Plan tab
-let exOpen = null;      // strength exercise open
+let playing = null;     // strength video currently playing
 let confirmClear = false;
 
 function update(patch, rerender = true) {
@@ -293,22 +301,37 @@ function plan(c) {
   return h;
 }
 
-function strength(c) {
-  const phase = WEEKS[c.curIdx].phase;
-  const thisW = phase === 'race' ? 'No strength this week' : phase === 'taper' ? 'Session A, light' : phase === 'ski' ? 'A (Tue) and B (Thu), 15–20 min each' : 'A (Mon) and B (Thu)';
-  let h = `<h1>Strength</h1><div class="body" style="margin-top:4px">This week: <b>${thisW}</b></div>`;
-  ['A', 'B'].forEach((k) => {
-    const list = STRENGTH[k].items;
-    h += `<div style="margin-top:20px"><h2>${esc(STRENGTH[k].title)}</h2><div class="card">`;
-    list.forEach(([name, dose, how, prog], j) => {
-      const id = k + j;
-      const open = exOpen === id;
-      h += `<div class="${j < list.length - 1 ? 'divider' : ''}">
-        <button class="exHead" data-act="ex" data-id="${id}" aria-expanded="${open}"><span class="exName">${esc(name)}</span><span class="exDose">${esc(dose)}</span></button>
-        ${open ? `<div style="padding-bottom:12px"><div class="body">${esc(how)}</div><div class="muted" style="margin-top:6px">${esc(prog)}</div></div>` : ''}
-      </div>`;
-    });
-    h += `</div></div>`;
+// When each session falls this week, by phase
+const SESSION_WHEN = {
+  A: { base: 'Monday', ski: 'Tuesday, 15–20 min', peak: 'Monday', taper: 'Thursday, light and bodyweight only', race: null },
+  B: { base: 'Thursday', ski: 'Thursday, 15–20 min', peak: 'Thursday', taper: null, race: null },
+};
+
+function strength(c, k) {
+  const s = STRENGTH[k];
+  const when = SESSION_WHEN[k][WEEKS[c.curIdx].phase];
+  const scheduled = weekItems(c.curIdx).some((it) => it.id === 's' + k.toLowerCase());
+  const doneKey = `${c.curIdx}-s${k.toLowerCase()}`;
+  const done = !!st.done[doneKey];
+  let h = `<h1>Strength ${k}</h1><div class="muted" style="margin-top:2px">${esc(s.title.replace(/^Session [AB]: /, ''))}</div>
+    <div class="body" style="margin-top:10px">This week: <b>${when || 'not scheduled'}</b></div>`;
+  if (scheduled) {
+    h += `<button class="weekBtn" style="${done ? 'background:var(--ink);color:#fff;border-color:var(--ink)' : 'border-color:var(--ink);color:var(--ink)'}" data-act="sdone" data-id="${doneKey}">${done ? `✓ Strength ${k} done this week (tap to undo)` : `Mark Strength ${k} done this week`}</button>`;
+  }
+  s.items.forEach(([name, dose, how, prog, vid], j) => {
+    const id = k + j;
+    const video = vid
+      ? playing === id
+        ? `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&playsinline=1&rel=0" title="${esc(name)} video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`
+        : `<button class="video thumb" data-act="play" data-id="${id}" aria-label="Play ${esc(name)} video" style="background-image:url(https://i.ytimg.com/vi/${vid}/hqdefault.jpg)"><span class="playBtn"></span></button>`
+      : '';
+    h += `<div class="card exCard">
+      <div class="exHead"><span class="exName">${j + 1}. ${esc(name)}</span><span class="exDose">${esc(dose)}</span></div>
+      ${video}
+      <div class="body" style="margin-top:10px">${esc(how)}</div>
+      <div class="muted" style="margin-top:6px">${esc(prog)}</div>
+      ${vid ? `<a class="ytLink" href="https://www.youtube.com/watch?v=${vid}" target="_blank" rel="noopener">Open in YouTube</a>` : ''}
+    </div>`;
   });
   h += `<div class="muted" style="margin-top:16px;line-height:20px">${esc(STRENGTH.notes)}</div>`;
   return h;
@@ -349,7 +372,7 @@ function paces(c) {
 }
 
 // ---------- render ----------
-const TABS = [['week', 'This week'], ['plan', 'Plan'], ['strength', 'Strength'], ['paces', 'Paces']];
+const TABS = [['week', 'This week'], ['plan', 'Plan'], ['sA', 'Strength A'], ['sB', 'Strength B'], ['paces', 'Paces']];
 const main = document.getElementById('main');
 
 function render() {
@@ -359,7 +382,7 @@ function render() {
   const caret = focusId ? a.selectionStart : null;
 
   const c = ctx();
-  main.innerHTML = tab === 'week' ? thisWeek(c) : tab === 'plan' ? plan(c) : tab === 'strength' ? strength(c) : paces(c);
+  main.innerHTML = tab === 'week' ? thisWeek(c) : tab === 'plan' ? plan(c) : tab === 'sA' ? strength(c, 'A') : tab === 'sB' ? strength(c, 'B') : paces(c);
   document.getElementById('tabs').innerHTML = TABS.map(([k, l]) =>
     `<button class="tab ${tab === k ? 'tabOn' : ''}" role="tab" aria-selected="${tab === k}" data-tab="${k}">${l}</button>`).join('');
 
@@ -372,7 +395,7 @@ function render() {
 document.getElementById('tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
   if (!b) return;
-  tab = b.dataset.tab; confirmClear = false;
+  tab = b.dataset.tab; confirmClear = false; playing = null;
   render(); window.scrollTo(0, 0);
 });
 
@@ -391,7 +414,8 @@ main.addEventListener('click', (e) => {
   }
   else if (act === 'swap') update({ sunday: { ...st.sunday, [wi]: !st.sunday[wi] } });
   else if (act === 'open') { planOpen = planOpen === wi ? null : wi; render(); }
-  else if (act === 'ex') { exOpen = exOpen === b.dataset.id ? null : b.dataset.id; render(); }
+  else if (act === 'play') { playing = b.dataset.id; render(); }
+  else if (act === 'sdone') { const k = b.dataset.id; update({ done: { ...st.done, [k]: !st.done[k] } }); }
   else if (act === 'race') update({ raceDay: b.dataset.id });
   else if (act === 'usehalf') update({ goal: fmt(toSec(st.half) * 2.1, true) });
   else if (act === 'clear') {

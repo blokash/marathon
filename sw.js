@@ -1,5 +1,5 @@
 // Offline support: fetch fresh when online, serve from cache when offline.
-const CACHE = 'marathon-v2';
+const CACHE = 'marathon-v3';
 const FILES = ['./', 'index.html', 'plan.js', 'manifest.json', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'favicon.png'];
 
 self.addEventListener('install', (e) => {
@@ -11,7 +11,7 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   // Network first so updates show up straight away; fall back to the cache when offline.
   e.respondWith(
     caches.open(CACHE).then((c) =>

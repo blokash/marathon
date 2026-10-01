@@ -160,28 +160,29 @@ function buildDays(week, { longOnSunday = false, raceOnSunday = false } = {}) {
 const plannedKm = (w) =>
   Math.round((w.q[1] + w.easy.reduce((s, e) => s + e[1], 0) + w.long[1]) * 10) / 10;
 
+// Strength items: [name, dose, how, progression, YouTube video id]
 const STRENGTH = {
   A: {
     title: 'Session A: legs and hips',
     items: [
-      ['Goblet squat', '3 × 10', 'Hold a dumbbell at your chest, sit hips back and down to parallel, drive up through your heels.', 'Add weight when 10 feels easy.'],
-      ['Reverse lunge', '3 × 8 each leg', 'Step back, lower the back knee toward the floor, front knee over mid-foot, push back up.', 'Hold dumbbells from November.'],
-      ['Single-leg Romanian deadlift', '3 × 8 each leg', 'Hinge at the hip on one leg, back flat, free leg extends behind. Stand tall squeezing the glute.', 'Builds hamstrings and balance.'],
-      ['Single-leg calf raise, straight knee', '3 × 15 each leg', 'On a step edge, rise fully onto your toes, then lower for 3 seconds below step level.', 'Add a backpack once 15 is easy.'],
-      ['Single-leg glute bridge', '3 × 12 each leg', 'On your back, one foot planted, drive hips up in line with shoulders. Pause 1 second at the top.', 'Put your foot on a bench to progress.'],
-      ['Front plank', '3 × 40 sec', 'Forearms down, straight line from head to heels, abs braced.', 'Build to 60 seconds.'],
+      ['Goblet squat', '3 × 10', 'Hold a dumbbell at your chest, sit hips back and down to parallel, drive up through your heels.', 'Add weight when 10 feels easy.', 'JO7D6GJ98wY'],
+      ['Reverse lunge', '3 × 8 each leg', 'Step back, lower the back knee toward the floor, front knee over mid-foot, push back up.', 'Hold dumbbells from November.', '-Nr6dqEvz3Q'],
+      ['Single-leg Romanian deadlift', '3 × 8 each leg', 'Hinge at the hip on one leg, back flat, free leg extends behind. Stand tall squeezing the glute.', 'Builds hamstrings and balance.', 'Zfr6wizR8rs'],
+      ['Single-leg calf raise, straight knee', '3 × 15 each leg', 'On a step edge, rise fully onto your toes, then lower for 3 seconds below step level.', 'Add a backpack once 15 is easy.', 'OgVFFGsVOxk'],
+      ['Single-leg glute bridge', '3 × 12 each leg', 'On your back, one foot planted, drive hips up in line with shoulders. Pause 1 second at the top.', 'Put your foot on a bench to progress.', 'sVfp4LN9niA'],
+      ['Front plank', '3 × 40 sec', 'Forearms down, straight line from head to heels, abs braced.', 'Build to 60 seconds.', '6LqqeBtFn9M'],
     ],
   },
   B: {
     title: 'Session B: calves, Achilles and stability',
     items: [
-      ['Bent-knee calf raise', '3 × 15 each leg', 'Knee bent about 30°, rise onto your toes, lower slowly. Targets the soleus, the calf muscle that carries you through a marathon.', 'Add weight from January.'],
-      ['Eccentric heel drops', '3 × 10 each leg', 'Rise on both feet, shift to one, lower slowly over 4 seconds below step level.', 'Your best Achilles protection during ski season.'],
-      ['Step-ups', '3 × 10 each leg', 'Knee-height box. Drive through the front heel without pushing off the back foot.', 'Hold dumbbells to progress.'],
-      ['Lateral band walks', '2 × 15 steps each way', 'Band around ankles or above knees, half squat, step sideways keeping tension.', 'Protects knees and hips late in the race.'],
-      ['Side plank', '2 × 30 sec each side', 'On your forearm, hips high, body straight.', 'Add a top-leg lift to progress.'],
-      ['Dead bug', '3 × 10 each side', 'On your back, arms up, knees at 90°. Lower opposite arm and leg slowly, keeping your low back flat.', 'Slow beats fast.'],
-      ['Pogo hops (from January)', '2 × 20', 'Small quick hops on the balls of your feet, stiff ankles, minimal ground contact.', 'Brings back the spring skiing does not train. Skip if calves are sore.'],
+      ['Bent-knee calf raise', '3 × 15 each leg', 'Knee bent about 30°, rise onto your toes, lower slowly. Targets the soleus, the calf muscle that carries you through a marathon.', 'Add weight from January.', 'C3tLEvqrW4E'],
+      ['Eccentric heel drops', '3 × 10 each leg', 'Rise on both feet, shift to one, lower slowly over 4 seconds below step level.', 'Your best Achilles protection during ski season.', 'FoCuDAkIdnM'],
+      ['Step-ups', '3 × 10 each leg', 'Knee-height box. Drive through the front heel without pushing off the back foot.', 'Hold dumbbells to progress.', 'WCFCdxzFBa4'],
+      ['Lateral band walks', '2 × 15 steps each way', 'Band around ankles or above knees, half squat, step sideways keeping tension.', 'Protects knees and hips late in the race.', 'PhNkkOieB-8'],
+      ['Side plank', '2 × 30 sec each side', 'On your forearm, hips high, body straight.', 'Add a top-leg lift to progress.', 'rCxF2nG9vQ0'],
+      ['Dead bug', '3 × 10 each side', 'On your back, arms up, knees at 90°. Lower opposite arm and leg slowly, keeping your low back flat.', 'Slow beats fast.', '-gRN_JyVTLY'],
+      ['Pogo hops (from January)', '2 × 20', 'Small quick hops on the balls of your feet, stiff ankles, minimal ground contact.', 'Brings back the spring skiing does not train. Skip if calves are sore.', 'hjprPAnfqoQ'],
     ],
   },
   notes:
