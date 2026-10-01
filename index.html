@@ -223,7 +223,7 @@ function weekTotalHtml(wi, color) {
       <span class="muted">${s.doneCount} of ${s.items.length} workouts done</span>
     </div>
     <div class="bar"><div class="barFill" id="bar-${wi}" style="width:${pct}%;background:${color}"></div></div>
-    <button class="weekBtn" style="${all ? `background:${color};color:#fff;border-color:${color}` : `border-color:${color};color:${color}`}" data-act="all" data-w="${wi}">${all ? '✓ Week complete (tap to undo)' : 'Mark whole week complete'}</button>
+    <button class="weekBtn" style="${all ? `background:${color};color:#fff;border-color:${color}` : `border-color:${color};color:${color}`}" data-act="all" data-w="${wi}">${all ? '✓ Completed (tap to undo)' : 'Mark as complete'}</button>
   </div>`;
 }
 
@@ -488,7 +488,20 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !d
 
 render();
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  // When a new version of the app is published, reload once so it shows straight away.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !reloaded) { reloaded = true; location.reload(); }
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+    .then((reg) => {
+      reg.update();
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); });
+    })
+    .catch(() => {});
+}
 </script>
 </body>
 </html>
