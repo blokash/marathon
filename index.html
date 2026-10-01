@@ -71,6 +71,12 @@
   .itemDetail { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 17px; }
   .km { font-size: 20px; margin-left: 8px; white-space: nowrap; }
   .unit { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .moveRow { display: flex; align-items: center; gap: 10px; margin: -6px 0 6px 36px; }
+  .movedNote { font-size: 12px; color: #A8861A; font-weight: 600; }
+  .moveBtn { font-size: 12px; color: #2F6F9F; font-weight: 600; padding: 4px 0; }
+  .dayPick { display: flex; gap: 3px; margin: 0 0 10px; }
+  .dayChip { flex: 1 1 0; min-width: 0; text-align: center; font-size: 12px; font-weight: 600; padding: 9px 0; border: 1.5px solid var(--field); border-radius: 7px; background: #fff; }
+  .dayChipOn { color: #fff; }
   .swapBtn { margin: 0 0 8px 36px; border: 1.5px solid; border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 600; }
   .skiLine { font-size: 14px; color: var(--sub); margin-top: 10px; }
 
@@ -134,7 +140,7 @@
 <script src="plan.js"></script>
 <script>
 const KEY = 'london-marathon-2027-v2';
-const DEFAULTS = { raceDay: 'sun', goal: '4:15:00', half: '', done: {}, actual: {}, sunday: {} };
+const DEFAULTS = { raceDay: 'sun', goal: '4:15:00', half: '', done: {}, actual: {}, sunday: {}, moved: {} };
 const MUTED = '#6B7B8C';
 const DAY_MS = 86400000;
 
@@ -145,6 +151,7 @@ let tab = 'week';
 let planOpen;           // week index open on Plan tab
 let playing = null;     // strength video currently playing
 let confirmClear = false;
+let moving = null;       // "week-itemId" whose day picker is open
 
 function update(patch, rerender = true) {
   st = { ...st, ...patch };
@@ -220,8 +227,21 @@ function weekTotalHtml(wi, color) {
   </div>`;
 }
 
+// Applies the days you've moved workouts to. Returns 7 day lists; each moved item gets `from`.
+function arrangeDays(wi) {
+  const days = buildDays(WEEKS[wi], { longOnSunday: !!st.sunday[wi], raceOnSunday: st.raceDay === 'sun' });
+  const out = [[], [], [], [], [], [], []];
+  days.forEach((items, d) => items.forEach((it) => {
+    const to = st.moved[`${wi}-${it.id}`];
+    if (it.kind !== 'Rest' && to !== undefined && to !== d) out[to].push({ ...it, from: d });
+    else out[d].push(it);
+  }));
+  // a day that now has a workout no longer needs its "Rest" line
+  return out.map((items) => (items.some((it) => it.kind !== 'Rest') ? items.filter((it) => it.kind !== 'Rest') : items));
+}
+
 // ---------- pieces ----------
-function itemHtml(wi, it, color) {
+function itemHtml(wi, it, color, day) {
   const tickable = it.kind !== 'Rest';
   const done = !!st.done[`${wi}-${it.id}`];
   const labelCls = ['itemLabel', it.big && 'itemBig', done && 'itemDone', !tickable && 'itemRest'].filter(Boolean).join(' ');
@@ -232,6 +252,15 @@ function itemHtml(wi, it, color) {
   let h = tickable
     ? `<button class="item tick" role="checkbox" aria-checked="${done}" data-act="toggle" data-w="${wi}" data-id="${it.id}">${inner}</button>`
     : `<div class="item">${inner}</div>`;
+  if (tickable) {
+    const key = `${wi}-${it.id}`;
+    h += `<div class="moveRow">${it.from !== undefined ? `<span class="movedNote">Moved from ${DAY_NAMES[it.from]}</span>` : ''}<button class="moveBtn" data-act="move" data-id="${key}" aria-expanded="${moving === key}">${moving === key ? 'Cancel' : 'Move to another day'}</button></div>`;
+    if (moving === key) {
+      const home = it.from !== undefined ? it.from : day;
+      h += `<div class="dayPick" role="group" aria-label="Move ${esc(it.label)} to">${DAY_NAMES.map((n, d) =>
+        `<button class="dayChip${d === day ? ' dayChipOn' : ''}" style="${d === day ? `background:${color};border-color:${color}` : ''}" data-act="moveto" data-id="${key}" data-day="${d}" data-home="${home}">${n}</button>`).join('')}</div>`;
+    }
+  }
   if (it.swappable) {
     h += `<button class="swapBtn" style="border-color:${color};color:${color}" data-act="swap" data-w="${wi}">${st.sunday[wi] ? 'Move long run back to Saturday' : 'Move long run to Sunday'}</button>`;
   }
@@ -241,14 +270,14 @@ function itemHtml(wi, it, color) {
 function weekDaysHtml(wi, todayIdx) {
   const w = WEEKS[wi];
   const ph = PHASES[w.phase];
-  const days = buildDays(w, { longOnSunday: !!st.sunday[wi], raceOnSunday: st.raceDay === 'sun' });
+  const days = arrangeDays(wi);
   const ws = weekStart(wi);
   let h = w.note ? `<div class="weekNote" style="color:${ph.color}">${esc(w.note)}</div>` : '';
   days.forEach((items, d) => {
     const isToday = todayIdx === d;
     h += `<div class="dayRow" ${isToday ? `style="background:${ph.tint};border-radius:8px"` : ''}>
       <div class="dayHead"><div class="dayName" ${isToday ? `style="color:${ph.color}"` : ''}>${DAY_NAMES[d]}</div><div class="dayDate">${shortDate(addDays(ws, d))}</div></div>
-      <div class="dayItems">${items.length === 0 ? '<div class="muted" style="padding:14px 0">Rest</div>' : items.map((it) => itemHtml(wi, it, ph.color)).join('')}</div>
+      <div class="dayItems">${items.length === 0 ? '<div class="muted" style="padding:14px 0">Rest</div>' : items.map((it) => itemHtml(wi, it, ph.color, d)).join('')}</div>
     </div>`;
   });
   if (w.ski) h += `<div class="skiLine">Skiing this week: ${esc(w.ski)}</div>`;
@@ -395,7 +424,7 @@ function render() {
 document.getElementById('tabs').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
   if (!b) return;
-  tab = b.dataset.tab; confirmClear = false; playing = null;
+  tab = b.dataset.tab; confirmClear = false; playing = null; moving = null;
   render(); window.scrollTo(0, 0);
 });
 
@@ -414,12 +443,21 @@ main.addEventListener('click', (e) => {
   }
   else if (act === 'swap') update({ sunday: { ...st.sunday, [wi]: !st.sunday[wi] } });
   else if (act === 'open') { planOpen = planOpen === wi ? null : wi; render(); }
+  else if (act === 'move') { moving = moving === b.dataset.id ? null : b.dataset.id; render(); }
+  else if (act === 'moveto') {
+    const moved = { ...st.moved };
+    const d = Number(b.dataset.day);
+    if (d === Number(b.dataset.home)) delete moved[b.dataset.id];
+    else moved[b.dataset.id] = d;
+    moving = null;
+    update({ moved });
+  }
   else if (act === 'play') { playing = b.dataset.id; render(); }
   else if (act === 'sdone') { const k = b.dataset.id; update({ done: { ...st.done, [k]: !st.done[k] } }); }
   else if (act === 'race') update({ raceDay: b.dataset.id });
   else if (act === 'usehalf') update({ goal: fmt(toSec(st.half) * 2.1, true) });
   else if (act === 'clear') {
-    if (confirmClear) { confirmClear = false; update({ done: {}, actual: {}, sunday: {} }); }
+    if (confirmClear) { confirmClear = false; update({ done: {}, actual: {}, sunday: {}, moved: {} }); }
     else { confirmClear = true; render(); }
   }
 });
