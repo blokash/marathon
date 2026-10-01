@@ -77,6 +77,12 @@
   .dayPick { display: flex; gap: 3px; margin: 0 0 10px; }
   .dayChip { flex: 1 1 0; min-width: 0; text-align: center; font-size: 12px; font-weight: 600; padding: 9px 0; border: 1.5px solid var(--field); border-radius: 7px; background: #fff; }
   .dayChipOn { color: #fff; }
+  .stravaTag { color: #FC4C02; font-weight: 700; }
+  .stravaCard { margin-top: 12px; }
+  .stravaBtn { background: #FC4C02; color: #fff; font-weight: 600; border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: inline-block; text-decoration: none; text-align: center; }
+  .stravaLine { font-size: 13px; color: var(--muted); margin: -8px 0 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .linkBtn { color: #2F6F9F; font-weight: 600; font-size: 13px; }
+  .err { color: var(--red); font-size: 13px; margin-top: 6px; }
   .swapBtn { margin: 0 0 8px 36px; border: 1.5px solid; border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 600; }
   .skiLine { font-size: 14px; color: var(--sub); margin-top: 10px; }
 
@@ -140,9 +146,15 @@
 <script src="plan.js"></script>
 <script>
 const KEY = 'london-marathon-2027-v2';
-const DEFAULTS = { raceDay: 'sun', goal: '4:15:00', half: '', done: {}, actual: {}, sunday: {}, moved: {} };
+const DEFAULTS = { raceDay: 'sun', goal: '4:15:00', half: '', done: {}, actual: {}, sunday: {}, moved: {},
+  ran: {},    // "week-itemId": { km, name } from Strava
+  extra: {},  // week index: [{ day, km, name, id }] Strava runs not in the plan
+  strava: { key: '', last: 0, seen: [], err: '', count: 0 },
+};
 const MUTED = '#6B7B8C';
 const DAY_MS = 86400000;
+const WORKER = 'https://marathon-strava.9jtvjr2bdz.workers.dev';
+const STRAVA = '#FC4C02';
 
 // ---------- state ----------
 let st = { ...DEFAULTS };
@@ -197,13 +209,15 @@ function ctx() {
 // Optional runs are written as a range ("Easy 5–6"); a ticked one counts the lower number.
 const optRange = (it) => (it.id === 'o' && it.label ? (/\d+(?:\.\d+)?(?:\s*[–-]\s*\d+(?:\.\d+)?)?/.exec(it.label) || [''])[0].replace(/\s/g, '') : '');
 const itemKm = (it) => it.km || (optRange(it) ? parseFloat(optRange(it)) : 0);
+const doneKm = (wi, it) => st.ran[`${wi}-${it.id}`]?.km ?? itemKm(it);
 const weekItems = (wi) =>
   buildDays(WEEKS[wi], { longOnSunday: !!st.sunday[wi], raceOnSunday: st.raceDay === 'sun' }).flat().filter((it) => it.kind !== 'Rest');
 
 function weekStats(wi) {
   const items = weekItems(wi);
   const done = items.filter((it) => st.done[`${wi}-${it.id}`]);
-  const tickedKm = Math.round(done.reduce((s, it) => s + itemKm(it), 0) * 10) / 10;
+  const extraKm = (st.extra[wi] || []).reduce((s, x) => s + x.km, 0);
+  const tickedKm = Math.round((done.reduce((s, it) => s + doneKm(wi, it), 0) + extraKm) * 10) / 10;
   const override = st.actual[wi];
   const km = override !== undefined && override !== '' ? Number(override) || 0 : tickedKm;
   return { items, doneCount: done.length, tickedKm, km };
@@ -236,19 +250,25 @@ function arrangeDays(wi) {
     if (it.kind !== 'Rest' && to !== undefined && to !== d) out[to].push({ ...it, from: d });
     else out[d].push(it);
   }));
+  (st.extra[wi] || []).forEach((x) => out[x.day].push({ id: 'x' + x.id, kind: 'Extra run', label: x.name, km: x.km, extra: true }));
   // a day that now has a workout no longer needs its "Rest" line
   return out.map((items) => (items.some((it) => it.kind !== 'Rest') ? items.filter((it) => it.kind !== 'Rest') : items));
 }
 
 // ---------- pieces ----------
 function itemHtml(wi, it, color, day) {
+  if (it.extra) {
+    return `<div class="item"><span class="check" style="border-color:${STRAVA};background:${STRAVA}">✓</span><span class="itemText"><div class="itemLabel">${esc(it.label)}</div><div class="itemKind"><span class="stravaTag">Strava</span> · extra run, not in the plan</div></span><span class="km num">${it.km}<span class="unit"> km</span></span></div>`;
+  }
   const tickable = it.kind !== 'Rest';
   const done = !!st.done[`${wi}-${it.id}`];
+  const ran = st.ran[`${wi}-${it.id}`];
+  const planKm = it.km || optRange(it);
   const labelCls = ['itemLabel', it.big && 'itemBig', done && 'itemDone', !tickable && 'itemRest'].filter(Boolean).join(' ');
   const box = tickable
     ? `<span class="check" style="border-color:${color};background:${done ? color : 'transparent'}">${done ? '✓' : ''}</span>`
     : '<span class="restDot"></span>';
-  const inner = `${box}<span class="itemText"><div class="${labelCls}">${esc(it.label)}</div><div class="itemKind">${esc(it.kind)}</div>${it.detail ? `<div class="itemDetail">${esc(it.detail)}</div>` : ''}</span>${it.km || optRange(it) ? `<span class="km num">${it.km || optRange(it)}<span class="unit"> km</span></span>` : ''}`;
+  const inner = `${box}<span class="itemText"><div class="${labelCls}">${esc(it.label)}</div><div class="itemKind">${esc(it.kind)}${ran ? ` · <span class="stravaTag">Strava</span>${planKm ? ` · planned ${planKm} km` : ''}` : ''}</div>${it.detail && !ran ? `<div class="itemDetail">${esc(it.detail)}</div>` : ''}</span>${ran || planKm ? `<span class="km num">${ran ? ran.km : planKm}<span class="unit"> km</span></span>` : ''}`;
   let h = tickable
     ? `<button class="item tick" role="checkbox" aria-checked="${done}" data-act="toggle" data-w="${wi}" data-id="${it.id}">${inner}</button>`
     : `<div class="item">${inner}</div>`;
@@ -303,6 +323,7 @@ function thisWeek(c) {
     </div>
     <div class="weekHeader"><h1>Week ${c.curIdx + 1}</h1><span class="muted">from ${shortDate(weekStart(c.curIdx))}</span></div>
     <div class="phaseBar" style="background:${ph.tint};border-left-color:${ph.color}"><b style="color:${ph.color}">${ph.name}. </b>${esc(ph.note)}</div>
+    ${stravaLine()}
     <div class="card">${weekDaysHtml(c.curIdx, c.todayIdx)}</div>
     <div class="statsRow">
       <div class="card stat"><div class="statNum num" id="logged">${Math.round(logged)}<span class="unit"> km</span></div><div class="statLabel">logged so far</div></div>
@@ -376,7 +397,7 @@ function paces(c) {
     ['Intervals', fmt(mp - 45), '1 km reps, 2 min jog between.'],
   ];
   return `
-    <h1>Paces and race</h1>
+    <h1>Paces, race and Strava</h1>
     <div class="card" style="margin-top:12px">${rows.map(([n, v, d], j) => `
       <div class="paceRow ${j < rows.length - 1 ? 'divider' : ''}">
         <div style="flex:1"><div class="exName">${n}</div><div class="itemKind">${d}</div></div>
@@ -397,7 +418,112 @@ function paces(c) {
     ${halfSec ? `<div class="predict"><div style="opacity:.8">Predicted marathon from your half</div>
       <div class="predictNum num">${fmt(halfSec * 2.1, true)}</div>
       <button class="predictBtn" data-act="usehalf">Use as goal time</button></div>` : ''}
+    ${stravaCard()}
     <button class="clearBtn" data-act="clear">${confirmClear ? 'Tap again to clear all ticks and km' : 'Clear progress'}</button>`;
+}
+
+// ---------- Strava ----------
+const RUN_IDS = ['l', 'q', 'e0', 'e1', 'o', 'shake'];
+const stravaReady = () => WORKER.startsWith('https://') && !!st.strava.key;
+let syncing = false;
+
+function ago(ts) {
+  const m = Math.round((Date.now() - ts) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`;
+}
+
+// Fit one week's Strava runs onto that week's planned runs.
+// The longest run takes the long run; the rest go to the planned run that best
+// matches by day and distance. Leftovers show as extra runs.
+function matchWeek(wi, acts, done, moved, ran, extra) {
+  const days = buildDays(WEEKS[wi], { longOnSunday: !!st.sunday[wi], raceOnSunday: st.raceDay === 'sun' });
+  const planned = [];
+  days.forEach((items, d) => items.forEach((it) => { if (RUN_IDS.includes(it.id)) planned.push({ it, home: d }); }));
+
+  // forget what Strava set for this week last time
+  planned.forEach(({ it }) => {
+    const k = `${wi}-${it.id}`;
+    if (ran[k]) { delete ran[k]; delete done[k]; delete moved[k]; }
+  });
+  extra[wi] = [];
+
+  const free = new Set(planned);
+  const assign = (a, p) => {
+    free.delete(p);
+    const k = `${wi}-${p.it.id}`;
+    done[k] = true;
+    ran[k] = { km: a.km, name: a.name };
+    if (a.day === p.home) delete moved[k]; else moved[k] = a.day;
+  };
+  const left = [...acts].sort((a, b) => a.date.localeCompare(b.date));
+  const longP = planned.find((p) => p.it.id === 'l');
+  if (longP && left.length) {
+    const longest = left.reduce((m, a) => (a.km > m.km ? a : m));
+    if (longest.km >= 0.6 * longP.it.km) { assign(longest, longP); left.splice(left.indexOf(longest), 1); }
+  }
+  left.forEach((a) => {
+    let best = null, score = Infinity;
+    free.forEach((p) => {
+      const sc = Math.abs(a.km - itemKm(p.it)) + 1.5 * Math.abs(a.day - p.home);
+      if (sc < score) { score = sc; best = p; }
+    });
+    if (best) assign(a, best);
+    else extra[wi].push({ day: a.day, km: a.km, name: a.name, id: a.id });
+  });
+  if (!extra[wi].length) delete extra[wi];
+}
+
+async function syncStrava(force = false) {
+  if (!stravaReady() || syncing) return;
+  if (!force && Date.now() - st.strava.last < 10 * 60000) return;
+  syncing = true; render();
+  try {
+    const after = Math.floor(startDate.getTime() / 1000) - DAY_MS / 1000;
+    const res = await fetch(`${WORKER}/runs?after=${after}`, { headers: { Authorization: `Bearer ${st.strava.key}` } });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(res.status === 401 ? 'The passphrase does not match the one set up for Strava.' : body.error || `Sync failed (${res.status})`);
+
+    // place each run in its plan week and day
+    const byWeek = {};
+    body.runs.forEach((r) => {
+      const [y, m, d] = r.date.split('-').map(Number);
+      const n = Math.round((new Date(y, m - 1, d) - startDate) / DAY_MS);
+      const wi = Math.floor(n / 7);
+      if (wi < 0 || wi >= WEEKS.length) return;
+      (byWeek[wi] = byWeek[wi] || []).push({ ...r, day: n - wi * 7 });
+    });
+    // only re-fit weeks with a run we haven't seen, so your own edits to other weeks stay
+    const seen = new Set(st.strava.seen);
+    const done = { ...st.done }, moved = { ...st.moved }, ran = { ...st.ran }, extra = { ...st.extra };
+    Object.entries(byWeek).forEach(([wi, acts]) => {
+      if (acts.some((a) => !seen.has(a.id))) matchWeek(Number(wi), acts, done, moved, ran, extra);
+    });
+    update({ done, moved, ran, extra, strava: { ...st.strava, last: Date.now(), seen: body.runs.map((r) => r.id), err: '', count: body.runs.length } }, false);
+  } catch (e) {
+    update({ strava: { ...st.strava, err: e.message === 'Failed to fetch' ? 'Could not reach Strava. Check your connection.' : e.message } }, false);
+  }
+  syncing = false; render();
+}
+
+function stravaLine() {
+  if (!stravaReady()) return '';
+  return `<div class="stravaLine"><span><span class="stravaTag">Strava</span> ${syncing ? 'syncing…' : st.strava.err ? `<span style="color:var(--red)">${esc(st.strava.err)}</span>` : st.strava.last ? `synced ${ago(st.strava.last)}` : 'not synced yet'}</span>${syncing ? '' : '<button class="linkBtn" data-act="sync">Sync now</button>'}</div>`;
+}
+
+function stravaCard() {
+  const ready = WORKER.startsWith('https://');
+  return `<span class="label">Strava</span>
+    <div class="card stravaCard" style="padding:12px">
+      <div class="body">Runs you record on Strava tick off the matching run, use your real distance, and move to the day you ran it.</div>
+      ${ready ? `
+      <label class="label" for="skey" style="margin-top:12px">Sync passphrase</label>
+      <input id="skey" class="input" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(st.strava.key)}" data-act="skey" placeholder="The passphrase you set up">
+      ${st.strava.key ? `<a class="stravaBtn" href="${WORKER}/connect?key=${encodeURIComponent(st.strava.key)}" target="_blank" rel="noopener">Connect Strava</a>
+      <div class="hint">You only need to connect once. Then tap Sync now or just open the app.</div>
+      <div style="margin-top:12px">${stravaLine().replace('class="stravaLine"', 'class="stravaLine" style="margin:0"')}</div>
+      ${st.strava.last && !st.strava.err ? `<div class="hint">${st.strava.count} runs found since the plan started.</div>` : ''}` : ''}`
+      : '<div class="hint">Strava setup is not finished yet.</div>'}
+    </div>`;
 }
 
 // ---------- render ----------
@@ -452,12 +578,13 @@ main.addEventListener('click', (e) => {
     moving = null;
     update({ moved });
   }
+  else if (act === 'sync') syncStrava(true);
   else if (act === 'play') { playing = b.dataset.id; render(); }
   else if (act === 'sdone') { const k = b.dataset.id; update({ done: { ...st.done, [k]: !st.done[k] } }); }
   else if (act === 'race') update({ raceDay: b.dataset.id });
   else if (act === 'usehalf') update({ goal: fmt(toSec(st.half) * 2.1, true) });
   else if (act === 'clear') {
-    if (confirmClear) { confirmClear = false; update({ done: {}, actual: {}, sunday: {}, moved: {} }); }
+    if (confirmClear) { confirmClear = false; update({ done: {}, actual: {}, sunday: {}, moved: {}, ran: {}, extra: {}, strava: { ...st.strava, seen: [], last: 0 } }); }
     else { confirmClear = true; render(); }
   }
 });
@@ -478,15 +605,24 @@ main.addEventListener('input', (e) => {
     if (bar) bar.style.width = `${Math.min(100, Math.round((s.km / plannedKm(WEEKS[wi])) * 100))}%`;
     const lg = document.getElementById('logged');
     if (lg) lg.innerHTML = `${Math.round(totalKm())}<span class="unit"> km</span>`;
+  } else if (act === 'skey') {
+    update({ strava: { ...st.strava, key: el.value.trim(), last: 0, err: '' } }, false);
+    clearTimeout(keyTimer); keyTimer = setTimeout(render, 600);
   } else if (act === 'goal' || act === 'half') {
     update({ [act]: el.value });
   }
 });
 
 // Refresh "today" when the app comes back to the foreground on a new day
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.activeElement?.matches('input')) render(); });
+let keyTimer;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (!document.activeElement?.matches('input')) render();
+  syncStrava();
+});
 
 render();
+syncStrava();
 
 if ('serviceWorker' in navigator) {
   // When a new version of the app is published, reload once so it shows straight away.
