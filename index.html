@@ -258,7 +258,7 @@ function arrangeDays(wi) {
 // ---------- pieces ----------
 function itemHtml(wi, it, color, day) {
   if (it.extra) {
-    return `<div class="item"><span class="check" style="border-color:${STRAVA};background:${STRAVA}">✓</span><span class="itemText"><div class="itemLabel">${esc(it.label)}</div><div class="itemKind"><span class="stravaTag">Strava</span> · extra run, not in the plan</div></span><span class="km num">${it.km}<span class="unit"> km</span></span></div>`;
+    return `<div class="item"><span class="check" style="border-color:${STRAVA};background:${STRAVA}">✓</span><span class="itemText"><div class="itemLabel">${esc(it.label)}</div><div class="itemKind"><span class="stravaTag">Synced</span> · extra run, not in the plan</div></span><span class="km num">${it.km}<span class="unit"> km</span></span></div>`;
   }
   const tickable = it.kind !== 'Rest';
   const done = !!st.done[`${wi}-${it.id}`];
@@ -268,7 +268,7 @@ function itemHtml(wi, it, color, day) {
   const box = tickable
     ? `<span class="check" style="border-color:${color};background:${done ? color : 'transparent'}">${done ? '✓' : ''}</span>`
     : '<span class="restDot"></span>';
-  const inner = `${box}<span class="itemText"><div class="${labelCls}">${esc(it.label)}</div><div class="itemKind">${esc(it.kind)}${ran ? ` · <span class="stravaTag">Strava</span>${planKm ? ` · planned ${planKm} km` : ''}` : ''}</div>${it.detail && !ran ? `<div class="itemDetail">${esc(it.detail)}</div>` : ''}</span>${ran || planKm ? `<span class="km num">${ran ? ran.km : planKm}<span class="unit"> km</span></span>` : ''}`;
+  const inner = `${box}<span class="itemText"><div class="${labelCls}">${esc(it.label)}</div><div class="itemKind">${esc(it.kind)}${ran ? ` · <span class="stravaTag">Synced</span>${planKm ? ` · planned ${planKm} km` : ''}` : ''}</div>${it.detail && !ran ? `<div class="itemDetail">${esc(it.detail)}</div>` : ''}</span>${ran || planKm ? `<span class="km num">${ran ? ran.km : planKm}<span class="unit"> km</span></span>` : ''}`;
   let h = tickable
     ? `<button class="item tick" role="checkbox" aria-checked="${done}" data-act="toggle" data-w="${wi}" data-id="${it.id}">${inner}</button>`
     : `<div class="item">${inner}</div>`;
@@ -397,7 +397,7 @@ function paces(c) {
     ['Intervals', fmt(mp - 45), '1 km reps, 2 min jog between.'],
   ];
   return `
-    <h1>Paces, race and Strava</h1>
+    <h1>Paces, race and run sync</h1>
     <div class="card" style="margin-top:12px">${rows.map(([n, v, d], j) => `
       <div class="paceRow ${j < rows.length - 1 ? 'divider' : ''}">
         <div style="flex:1"><div class="exName">${n}</div><div class="itemKind">${d}</div></div>
@@ -481,7 +481,7 @@ async function syncStrava(force = false) {
     const after = Math.floor(startDate.getTime() / 1000) - DAY_MS / 1000;
     const res = await fetch(`${WORKER}/runs?after=${after}`, { headers: { Authorization: `Bearer ${st.strava.key}` } });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(res.status === 401 ? 'The passphrase does not match the one set up for Strava.' : body.error || `Sync failed (${res.status})`);
+    if (!res.ok) throw new Error(res.status === 401 ? 'The passphrase does not match the one you set up.' : body.error || `Sync failed (${res.status})`);
 
     // place each run in its plan week and day
     const byWeek = {};
@@ -500,29 +500,28 @@ async function syncStrava(force = false) {
     });
     update({ done, moved, ran, extra, strava: { ...st.strava, last: Date.now(), seen: body.runs.map((r) => r.id), err: '', count: body.runs.length } }, false);
   } catch (e) {
-    update({ strava: { ...st.strava, err: e.message === 'Failed to fetch' ? 'Could not reach Strava. Check your connection.' : e.message } }, false);
+    update({ strava: { ...st.strava, err: e.message === 'Failed to fetch' ? 'Could not reach the run sync. Check your connection.' : e.message } }, false);
   }
   syncing = false; render();
 }
 
 function stravaLine() {
   if (!stravaReady()) return '';
-  return `<div class="stravaLine"><span><span class="stravaTag">Strava</span> ${syncing ? 'syncing…' : st.strava.err ? `<span style="color:var(--red)">${esc(st.strava.err)}</span>` : st.strava.last ? `synced ${ago(st.strava.last)}` : 'not synced yet'}</span>${syncing ? '' : '<button class="linkBtn" data-act="sync">Sync now</button>'}</div>`;
+  return `<div class="stravaLine"><span><span class="stravaTag">Run sync</span> ${syncing ? 'syncing…' : st.strava.err ? `<span style="color:var(--red)">${esc(st.strava.err)}</span>` : st.strava.last ? `synced ${ago(st.strava.last)}` : 'not synced yet'}</span>${syncing ? '' : '<button class="linkBtn" data-act="sync">Sync now</button>'}</div>`;
 }
 
 function stravaCard() {
   const ready = WORKER.startsWith('https://');
-  return `<span class="label">Strava</span>
+  return `<span class="label">Run sync (Apple Health)</span>
     <div class="card stravaCard" style="padding:12px">
-      <div class="body">Runs you record on Strava tick off the matching run, use your real distance, and move to the day you ran it.</div>
+      <div class="body">Runs in Apple Health (from your Apple Watch, or Strava sharing with Health) tick off the matching run, use your real distance, and move to the day you ran it. An iPhone Shortcut sends them over.</div>
       ${ready ? `
       <label class="label" for="skey" style="margin-top:12px">Sync passphrase</label>
       <input id="skey" class="input" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(st.strava.key)}" data-act="skey" placeholder="The passphrase you set up">
-      ${st.strava.key ? `<a class="stravaBtn" href="${WORKER}/connect?key=${encodeURIComponent(st.strava.key)}" target="_blank" rel="noopener">Connect Strava</a>
-      <div class="hint">You only need to connect once. Then tap Sync now or just open the app.</div>
+      ${st.strava.key ? `
       <div style="margin-top:12px">${stravaLine().replace('class="stravaLine"', 'class="stravaLine" style="margin:0"')}</div>
-      ${st.strava.last && !st.strava.err ? `<div class="hint">${st.strava.count} runs found since the plan started.</div>` : ''}` : ''}`
-      : '<div class="hint">Strava setup is not finished yet.</div>'}
+      ${st.strava.last && !st.strava.err ? `<div class="hint">${st.strava.count} runs found since the plan started. The app checks for new runs each time you open it.</div>` : ''}` : ''}`
+      : '<div class="hint">Run sync setup is not finished yet.</div>'}
     </div>`;
 }
 
